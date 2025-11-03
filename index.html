@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>款式编码查询工具 - 云端数据版</title>
-    <meta name="description" content="自动加载云端数据，支持语音播报">
+    <title>款式编码查询工具 - 安卓兼容版</title>
+    <meta name="description" content="自动加载云端数据，安卓兼容语音播报">
     <style>
         :root {
             --primary: #4a6bdf;
@@ -184,11 +184,25 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            margin-bottom: 10px;
         }
         
         .voice-output-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
+        }
+        
+        .copy-result-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--warning);
+            color: var(--dark);
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
         }
         
         .result-modal {
@@ -259,6 +273,13 @@
             display: none;
         }
         
+        .voice-status {
+            font-size: 0.9rem;
+            color: #666;
+            margin: 10px 0;
+            min-height: 20px;
+        }
+        
         .close-btn {
             margin-top: 20px;
             padding: 14px 25px;
@@ -309,13 +330,24 @@
             font-size: 0.9rem;
             color: #0c5460;
         }
+        
+        .compatibility-info {
+            text-align: center;
+            background: #fff3cd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🔍 款式编码查询工具</h1>
-            <p>云端数据版 - 自动加载，无需配置</p>
+            <p>安卓兼容版 - 自动加载，语音优化</p>
         </div>
         
         <div class="content">
@@ -355,6 +387,10 @@
                 <div class="data-source">
                     📊 数据来源：云端数据文件 (data.json)
                 </div>
+                
+                <div class="compatibility-info" id="compatibilityInfo">
+                    🔄 检测语音兼容性中...
+                </div>
             </div>
             
             <!-- 查询部分 -->
@@ -370,8 +406,13 @@
                     立即查询工厂代号
                 </button>
                 <button class="voice-output-btn" id="voiceOutputBtn" disabled>
-                    🔊 重新播报结果
+                    🔊 语音播报结果
                 </button>
+                <button class="copy-result-btn" id="copyResultBtn" disabled>
+                    📋 复制结果文本
+                </button>
+                
+                <div class="voice-status" id="voiceStatus"></div>
             </div>
         </div>
     </div>
@@ -385,6 +426,7 @@
             <div class="speaking-indicator" id="speakingIndicator">
                 🔊 语音播报中...
             </div>
+            <div class="voice-status" id="modalVoiceStatus"></div>
             <button class="close-btn" id="closeResultBtn">
                 确定
             </button>
@@ -399,6 +441,7 @@
         let lastResult = null;
         let synthesis = null;
         let searchCount = 0;
+        let isSpeechSupported = false;
         
         // DOM元素
         const dataInfo = document.getElementById('dataInfo');
@@ -413,12 +456,16 @@
         const searchCodeInput = document.getElementById('searchCodeInput');
         const searchBtn = document.getElementById('searchBtn');
         const voiceOutputBtn = document.getElementById('voiceOutputBtn');
+        const copyResultBtn = document.getElementById('copyResultBtn');
+        const voiceStatus = document.getElementById('voiceStatus');
+        const modalVoiceStatus = document.getElementById('modalVoiceStatus');
         const resultModal = document.getElementById('resultModal');
         const resultCode = document.getElementById('resultCode');
         const resultFactory = document.getElementById('resultFactory');
         const speakingIndicator = document.getElementById('speakingIndicator');
         const closeResultBtn = document.getElementById('closeResultBtn');
         const toast = document.getElementById('toast');
+        const compatibilityInfo = document.getElementById('compatibilityInfo');
         
         // 初始化应用
         async function init() {
@@ -429,17 +476,56 @@
         }
         
         function initSpeech() {
+            // 检查语音合成支持
             if ('speechSynthesis' in window) {
                 synthesis = window.speechSynthesis;
+                isSpeechSupported = true;
+                
+                // 进一步检查安卓兼容性
+                checkAndroidCompatibility();
             } else {
+                isSpeechSupported = false;
+                updateVoiceUI();
+            }
+        }
+        
+        function checkAndroidCompatibility() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isAndroid = userAgent.indexOf('android') > -1;
+            
+            if (isAndroid) {
+                // 安卓设备，进行额外测试
+                compatibilityInfo.innerHTML = '📱 安卓设备 - 语音功能可能受限';
+                compatibilityInfo.style.background = '#fff3cd';
+                compatibilityInfo.style.color = '#856404';
+            } else {
+                compatibilityInfo.innerHTML = '✅ 设备支持语音播报';
+                compatibilityInfo.style.background = '#d4edda';
+                compatibilityInfo.style.color = '#155724';
+            }
+            
+            updateVoiceUI();
+        }
+        
+        function updateVoiceUI() {
+            if (!isSpeechSupported) {
                 voiceOutputBtn.disabled = true;
                 voiceOutputBtn.innerHTML = '❌ 不支持语音';
+                voiceStatus.innerHTML = '当前设备不支持语音播报功能';
+                compatibilityInfo.innerHTML = '❌ 当前浏览器不支持语音合成';
+                compatibilityInfo.style.background = '#f8d7da';
+                compatibilityInfo.style.color = '#721c24';
+            } else {
+                voiceOutputBtn.disabled = false;
+                voiceOutputBtn.innerHTML = '🔊 语音播报结果';
+                voiceStatus.innerHTML = '✅ 语音功能已就绪';
             }
         }
         
         function bindEvents() {
             searchBtn.addEventListener('click', searchFactoryCode);
             voiceOutputBtn.addEventListener('click', speakResult);
+            copyResultBtn.addEventListener('click', copyResultToClipboard);
             closeResultBtn.addEventListener('click', closeResultModal);
             
             searchCodeInput.addEventListener('keypress', (e) => {
@@ -489,13 +575,28 @@
             const fallbackData = [
                 {"款式编码": "Z1206", "工厂代号": "J"},
                 {"款式编码": "D101", "工厂代号": "SD"},
-                {"款式编码": "D105", "工厂代号": "SD"}
+                {"款式编码": "D105", "工厂代号": "SD"},
+                {"款式编码": "D109", "工厂代号": "SD"},
+                {"款式编码": "D110", "工厂代号": "SD"},
+                {"款式编码": "D115", "工厂代号": "SD"},
+                {"款式编码": "D117", "工厂代号": "SD"},
+                {"款式编码": "D122", "工厂代号": "SD"},
+                {"款式编码": "D126", "工厂代号": "SD"},
+                {"款式编码": "D129", "工厂代号": "SD"},
+                {"款式编码": "D1301", "工厂代号": "HY"},
+                {"款式编码": "D1304", "工厂代号": "HY"},
+                {"款式编码": "D1305", "工厂代号": "HY"},
+                {"款式编码": "D1306", "工厂代号": "HY"},
+                {"款式编码": "D130", "工厂代号": "SD"},
+                {"款式编码": "D1307", "工厂代号": "HY"},
+                {"款式编码": "D1314", "工厂代号": "HY"},
+                {"款式编码": "D1320", "工厂代号": "HY"}
             ];
             
             styleData = fallbackData;
             updateDisplay();
-            showSuccessState('备用数据');
-            showToast('⚠️ 使用备用数据，功能受限');
+            showSuccessState('内置数据');
+            showToast('⚠️ 使用内置数据');
         }
         
         function showSuccessState(lastUpdated) {
@@ -504,14 +605,15 @@
             errorInfo.style.display = 'none';
             dataStats.style.display = 'grid';
             
-            if (lastUpdated && lastUpdated !== '备用数据') {
+            if (lastUpdated && lastUpdated !== '内置数据') {
                 updateInfo.textContent = `最后更新: ${lastUpdated}`;
             }
             
             // 启用输入和按钮
             searchCodeInput.disabled = false;
             searchBtn.disabled = false;
-            voiceOutputBtn.disabled = false;
+            voiceOutputBtn.disabled = !isSpeechSupported;
+            copyResultBtn.disabled = false;
         }
         
         function showErrorState() {
@@ -564,7 +666,10 @@
                 };
                 showResult(styleCode, result.工厂代号);
                 
-                setTimeout(() => speakResult(), 400);
+                // 自动语音播报（如果支持）
+                if (isSpeechSupported) {
+                    setTimeout(() => speakResult(), 400);
+                }
             } else {
                 showToast(`❌ 未找到款式编码：${styleCode}`, true);
             }
@@ -574,26 +679,79 @@
             resultCode.textContent = `款式编码: ${styleCode}`;
             resultFactory.textContent = `${factoryCode} 工厂`;
             resultModal.style.display = 'flex';
+            
+            // 更新模态框中的语音状态
+            if (!isSpeechSupported) {
+                modalVoiceStatus.innerHTML = '❌ 当前设备不支持语音播报，请使用复制功能';
+                modalVoiceStatus.style.color = '#dc3545';
+            }
         }
         
         function speakResult() {
-            if (!lastResult) return;
-            if (!synthesis) return;
+            if (!lastResult || !isSpeechSupported) return;
             
-            synthesis.cancel();
+            try {
+                // 停止当前播报
+                if (synthesis.speaking) {
+                    synthesis.cancel();
+                }
+                
+                const utterance = new SpeechSynthesisUtterance();
+                utterance.text = `款式编码 ${lastResult.styleCode} 对应的工厂是 ${lastResult.factoryCode} 工厂`;
+                utterance.lang = 'zh-CN';
+                utterance.rate = 0.8;  // 安卓上慢一点更稳定
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                
+                speakingIndicator.style.display = 'block';
+                modalVoiceStatus.innerHTML = '🔊 语音播报中...';
+                
+                utterance.onend = () => {
+                    speakingIndicator.style.display = 'none';
+                    modalVoiceStatus.innerHTML = '✅ 播报完成';
+                    setTimeout(() => {
+                        modalVoiceStatus.innerHTML = '';
+                    }, 2000);
+                };
+                
+                utterance.onerror = (event) => {
+                    console.error('语音合成错误:', event);
+                    speakingIndicator.style.display = 'none';
+                    modalVoiceStatus.innerHTML = '❌ 语音播报失败，请使用复制功能';
+                    modalVoiceStatus.style.color = '#dc3545';
+                    showToast('❌ 语音播报失败', true);
+                };
+                
+                synthesis.speak(utterance);
+                
+            } catch (error) {
+                console.error('语音合成异常:', error);
+                modalVoiceStatus.innerHTML = '❌ 语音功能异常，请使用复制功能';
+                modalVoiceStatus.style.color = '#dc3545';
+                showToast('❌ 语音功能异常', true);
+            }
+        }
+        
+        function copyResultToClipboard() {
+            if (!lastResult) {
+                showToast('❌ 没有可复制的结果', true);
+                return;
+            }
             
-            const utterance = new SpeechSynthesisUtterance();
-            utterance.text = `款式编码 ${lastResult.styleCode} 对应的工厂是 ${lastResult.factoryCode} 工厂`;
-            utterance.lang = 'zh-CN';
-            utterance.rate = 0.9;
+            const resultText = `款式编码: ${lastResult.styleCode}\n工厂代号: ${lastResult.factoryCode}`;
             
-            speakingIndicator.style.display = 'block';
-            
-            utterance.onend = () => {
-                speakingIndicator.style.display = 'none';
-            };
-            
-            synthesis.speak(utterance);
+            navigator.clipboard.writeText(resultText).then(() => {
+                showToast('✅ 结果已复制到剪贴板');
+            }).catch(() => {
+                // 备用方案
+                const textArea = document.createElement('textarea');
+                textArea.value = resultText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showToast('✅ 结果已复制到剪贴板');
+            });
         }
         
         function closeResultModal() {
@@ -601,6 +759,7 @@
             searchCodeInput.value = '';
             searchCodeInput.focus();
             speakingIndicator.style.display = 'none';
+            modalVoiceStatus.innerHTML = '';
         }
         
         function showToast(message, isError = false) {
