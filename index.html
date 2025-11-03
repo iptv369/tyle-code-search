@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>款式编码查询工具 - 云端数据版</title>
+    <meta name="description" content="自动加载云端数据，支持语音播报">
+    <style>
+        :root {
+            --primary: #4a6bdf;
+            --secondary: #6a11cb;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #e74c3c;
+            --light: #f8f9fa;
+            --dark: #343a40;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            padding: 10px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--dark);
+            font-weight: 600;
+        }
+        
+        .data-info {
+            background-color: var(--light);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .data-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 2px solid #e9ecef;
+        }
+        
+        .stat-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .input-group input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        
+        .search-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        
+        .search-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .voice-output-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .voice-output-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .result-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .result-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            animation: modalAppear 0.4s ease-out;
+        }
+        
+        @keyframes modalAppear {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .result-title {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: var(--dark);
+            font-weight: 700;
+        }
+        
+        .result-code {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #666;
+        }
+        
+        .result-factory {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 20px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9ff, #e8f0ff);
+            border-radius: 12px;
+        }
+        
+        .speaking-indicator {
+            font-size: 1rem;
+            color: var(--success);
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .close-btn {
+            margin-top: 20px;
+            padding: 14px 25px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--dark);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 10px;
+            z-index: 1001;
+            opacity: 0;
+            transition: all 0.3s;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+        
+        .update-info {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .data-source {
+            text-align: center;
+            background: #e8f4f8;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 款式编码查询工具</h1>
+            <p>云端数据版 - 自动加载，无需配置</p>
+        </div>
+        
+        <div class="content">
+            <!-- 数据状态部分 -->
+            <div class="section">
+                <div class="section-title">数据状态</div>
+                
+                <div class="data-info" id="dataInfo">
+                    <div class="loading" id="loadingIndicator">
+                        <div class="spinner"></div>
+                        <p>正在加载云端数据...</p>
+                    </div>
+                    <div id="loadedInfo" style="display: none;">
+                        <p>✅ 数据加载完成！可以开始查询</p>
+                        <div class="update-info" id="updateInfo"></div>
+                    </div>
+                    <div id="errorInfo" style="display: none;">
+                        <p>❌ 数据加载失败，请刷新页面重试</p>
+                    </div>
+                </div>
+                
+                <div class="data-stats" id="dataStats" style="display: none;">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalRecords">0</div>
+                        <div class="stat-label">总记录数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="uniqueFactories">0</div>
+                        <div class="stat-label">工厂数量</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="searchCount">0</div>
+                        <div class="stat-label">查询次数</div>
+                    </div>
+                </div>
+                
+                <div class="data-source">
+                    📊 数据来源：云端数据文件 (data.json)
+                </div>
+            </div>
+            
+            <!-- 查询部分 -->
+            <div class="section">
+                <div class="section-title">编码查询</div>
+                
+                <div class="input-group">
+                    <label for="searchCodeInput">🔍 输入要查询的款式编码</label>
+                    <input type="text" id="searchCodeInput" placeholder="输入款式编码，如：Z1206" disabled>
+                </div>
+                
+                <button class="search-btn" id="searchBtn" disabled>
+                    立即查询工厂代号
+                </button>
+                <button class="voice-output-btn" id="voiceOutputBtn" disabled>
+                    🔊 重新播报结果
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 查询结果弹窗 -->
+    <div class="result-modal" id="resultModal">
+        <div class="result-content">
+            <div class="result-title">🎉 查询结果</div>
+            <div class="result-code" id="resultCode"></div>
+            <div class="result-factory" id="resultFactory"></div>
+            <div class="speaking-indicator" id="speakingIndicator">
+                🔊 语音播报中...
+            </div>
+            <button class="close-btn" id="closeResultBtn">
+                确定
+            </button>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // 应用状态
+        let styleData = [];
+        let lastResult = null;
+        let synthesis = null;
+        let searchCount = 0;
+        
+        // DOM元素
+        const dataInfo = document.getElementById('dataInfo');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadedInfo = document.getElementById('loadedInfo');
+        const errorInfo = document.getElementById('errorInfo');
+        const updateInfo = document.getElementById('updateInfo');
+        const dataStats = document.getElementById('dataStats');
+        const totalRecords = document.getElementById('totalRecords');
+        const uniqueFactories = document.getElementById('uniqueFactories');
+        const searchCountElement = document.getElementById('searchCount');
+        const searchCodeInput = document.getElementById('searchCodeInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const voiceOutputBtn = document.getElementById('voiceOutputBtn');
+        const resultModal = document.getElementById('resultModal');
+        const resultCode = document.getElementById('resultCode');
+        const resultFactory = document.getElementById('resultFactory');
+        const speakingIndicator = document.getElementById('speakingIndicator');
+        const closeResultBtn = document.getElementById('closeResultBtn');
+        const toast = document.getElementById('toast');
+        
+        // 初始化应用
+        async function init() {
+            initSpeech();
+            bindEvents();
+            await loadDataFromServer();
+            loadSearchCount();
+        }
+        
+        function initSpeech() {
+            if ('speechSynthesis' in window) {
+                synthesis = window.speechSynthesis;
+            } else {
+                voiceOutputBtn.disabled = true;
+                voiceOutputBtn.innerHTML = '❌ 不支持语音';
+            }
+        }
+        
+        function bindEvents() {
+            searchBtn.addEventListener('click', searchFactoryCode);
+            voiceOutputBtn.addEventListener('click', speakResult);
+            closeResultBtn.addEventListener('click', closeResultModal);
+            
+            searchCodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') searchFactoryCode();
+            });
+            
+            resultModal.addEventListener('click', (e) => {
+                if (e.target === resultModal) closeResultModal();
+            });
+        }
+        
+        // 从服务器加载数据
+        async function loadDataFromServer() {
+            try {
+                showToast('📡 正在连接云端数据...');
+                
+                // 尝试从 data.json 加载数据
+                const response = await fetch('./data.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.data && Array.isArray(data.data)) {
+                    styleData = data.data;
+                    updateDisplay();
+                    showSuccessState(data.lastUpdated);
+                    showToast('✅ 云端数据加载成功！');
+                } else {
+                    throw new Error('数据格式错误');
+                }
+                
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                showErrorState();
+                showToast('❌ 数据加载失败，请检查网络连接', true);
+                
+                // 尝试使用备用数据
+                await loadFallbackData();
+            }
+        }
+        
+        // 备用数据（如果云端加载失败）
+        async function loadFallbackData() {
+            const fallbackData = [
+                {"款式编码": "Z1206", "工厂代号": "J"},
+                {"款式编码": "D101", "工厂代号": "SD"},
+                {"款式编码": "D105", "工厂代号": "SD"}
+            ];
+            
+            styleData = fallbackData;
+            updateDisplay();
+            showSuccessState('备用数据');
+            showToast('⚠️ 使用备用数据，功能受限');
+        }
+        
+        function showSuccessState(lastUpdated) {
+            loadingIndicator.style.display = 'none';
+            loadedInfo.style.display = 'block';
+            errorInfo.style.display = 'none';
+            dataStats.style.display = 'grid';
+            
+            if (lastUpdated && lastUpdated !== '备用数据') {
+                updateInfo.textContent = `最后更新: ${lastUpdated}`;
+            }
+            
+            // 启用输入和按钮
+            searchCodeInput.disabled = false;
+            searchBtn.disabled = false;
+            voiceOutputBtn.disabled = false;
+        }
+        
+        function showErrorState() {
+            loadingIndicator.style.display = 'none';
+            loadedInfo.style.display = 'none';
+            errorInfo.style.display = 'block';
+            dataStats.style.display = 'none';
+        }
+        
+        function updateDisplay() {
+            totalRecords.textContent = styleData.length;
+            
+            const factories = new Set(styleData.map(item => item.工厂代号));
+            uniqueFactories.textContent = factories.size;
+            
+            searchCountElement.textContent = searchCount;
+        }
+        
+        function loadSearchCount() {
+            const saved = localStorage.getItem('cloudSearchCount');
+            if (saved) {
+                searchCount = parseInt(saved) || 0;
+                updateDisplay();
+            }
+        }
+        
+        function saveSearchCount() {
+            localStorage.setItem('cloudSearchCount', searchCount.toString());
+        }
+        
+        function searchFactoryCode() {
+            const styleCode = searchCodeInput.value.trim();
+            if (!styleCode) {
+                showToast('❌ 请输入款式编码', true);
+                return;
+            }
+            
+            const result = styleData.find(item => 
+                item.款式编码.toUpperCase() === styleCode.toUpperCase()
+            );
+            
+            if (result) {
+                searchCount++;
+                updateDisplay();
+                saveSearchCount();
+                
+                lastResult = { 
+                    styleCode: styleCode, 
+                    factoryCode: result.工厂代号 
+                };
+                showResult(styleCode, result.工厂代号);
+                
+                setTimeout(() => speakResult(), 400);
+            } else {
+                showToast(`❌ 未找到款式编码：${styleCode}`, true);
+            }
+        }
+        
+        function showResult(styleCode, factoryCode) {
+            resultCode.textContent = `款式编码: ${styleCode}`;
+            resultFactory.textContent = `${factoryCode} 工厂`;
+            resultModal.style.display = 'flex';
+        }
+        
+        function speakResult() {
+            if (!lastResult) return;
+            if (!synthesis) return;
+            
+            synthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance();
+            utterance.text = `款式编码 ${lastResult.styleCode} 对应的工厂是 ${lastResult.factoryCode} 工厂`;
+            utterance.lang = 'zh-CN';
+            utterance.rate = 0.9;
+            
+            speakingIndicator.style.display = 'block';
+            
+            utterance.onend = () => {
+                speakingIndicator.style.display = 'none';
+            };
+            
+            synthesis.speak(utterance);
+        }
+        
+        function closeResultModal() {
+            resultModal.style.display = 'none';
+            searchCodeInput.value = '';
+            searchCodeInput.focus();
+            speakingIndicator.style.display = 'none';
+        }
+        
+        function showToast(message, isError = false) {
+            toast.textContent = message;
+            toast.style.background = isError ? 'var(--danger)' : 'var(--success)';
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 启动应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
