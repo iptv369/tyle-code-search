@@ -81,6 +81,27 @@
             border-left: 5px solid var(--primary);
         }
         
+        .loading {
+            text-align: center;
+            padding: 10px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .data-stats {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
@@ -111,6 +132,7 @@
         
         .input-group {
             margin-bottom: 20px;
+            position: relative;
         }
         
         .input-group label {
@@ -133,6 +155,34 @@
             border-color: var(--primary);
             outline: none;
             transform: scale(1.02);
+        }
+        
+        .search-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 0 0 8px 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        
+        .suggestion-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .suggestion-item:hover {
+            background: var(--light);
+        }
+        
+        .suggestion-item:last-child {
+            border-bottom: none;
         }
         
         .search-btn {
@@ -340,13 +390,20 @@
         .audio-btn:active {
             transform: scale(0.95);
         }
+        
+        .auto-search-info {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🔊 款式编码查询工具</h1>
-            <p>语音播报版 - 使用预录制音频</p>
+            <p>自动搜索 • 语音播报 • 云端数据</p>
         </div>
         
         <div class="content">
@@ -354,20 +411,27 @@
             <div class="section">
                 <div class="section-title">数据状态</div>
                 
-                <div class="data-info">
-                    <p>✅ 已加载专业数据，支持语音播报</p>
-                    <div style="font-size: 0.8rem; color: #666; margin-top: 5px;">
-                        🔊 直接播放工厂代号语音
+                <div class="data-info" id="dataInfo">
+                    <div class="loading" id="loadingIndicator">
+                        <div class="spinner"></div>
+                        <p>正在加载云端数据...</p>
+                    </div>
+                    <div id="loadedInfo" style="display: none;">
+                        <p>✅ 数据加载完成！可以开始查询</p>
+                        <div class="update-info" id="updateInfo"></div>
+                    </div>
+                    <div id="errorInfo" style="display: none;">
+                        <p>❌ 数据加载失败，使用内置数据</p>
                     </div>
                 </div>
                 
-                <div class="data-stats">
+                <div class="data-stats" id="dataStats" style="display: none;">
                     <div class="stat-card">
-                        <div class="stat-number" id="totalRecords">18</div>
+                        <div class="stat-number" id="totalRecords">0</div>
                         <div class="stat-label">总记录数</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number" id="uniqueFactories">5</div>
+                        <div class="stat-number" id="uniqueFactories">0</div>
                         <div class="stat-label">工厂数量</div>
                     </div>
                     <div class="stat-card">
@@ -383,23 +447,28 @@
                 
                 <div class="input-group">
                     <label for="searchCodeInput">🎯 输入款式编码</label>
-                    <input type="text" id="searchCodeInput" placeholder="例如：Z1206、D101、D1301..." autocomplete="off">
+                    <input type="text" id="searchCodeInput" placeholder="输入编码自动搜索，如：Z1206" autocomplete="off">
+                    <div class="search-suggestions" id="searchSuggestions"></div>
                 </div>
                 
-                <button class="search-btn" id="searchBtn">
+                <div class="auto-search-info">
+                    💡 输入时自动搜索，按回车键或点击按钮确认
+                </div>
+                
+                <button class="search-btn" id="searchBtn" disabled>
                     🔍 立即查询
                 </button>
                 
-                <button class="voice-output-btn" id="voiceOutputBtn">
+                <button class="voice-output-btn" id="voiceOutputBtn" disabled>
                     🔊 播放工厂语音
                 </button>
                 
-                <button class="copy-btn" id="copyResultBtn">
+                <button class="copy-btn" id="copyResultBtn" disabled>
                     📋 复制结果
                 </button>
                 
                 <div class="audio-status" id="audioStatus">
-                    语音系统就绪
+                    等待数据加载...
                 </div>
             </div>
         </div>
@@ -437,8 +506,8 @@
     <audio id="audioPlayer" preload="auto"></audio>
 
     <script>
-        // 内置数据
-        const styleData = [
+        // 内置数据（备用）
+        const fallbackData = [
             {"款式编码": "Z1206", "工厂代号": "J"},
             {"款式编码": "D101", "工厂代号": "SD"},
             {"款式编码": "D105", "工厂代号": "SD"},
@@ -457,7 +526,6 @@
             {"款式编码": "D1307", "工厂代号": "HY"},
             {"款式编码": "D1314", "工厂代号": "HY"},
             {"款式编码": "D1320", "工厂代号": "HY"},
-            // 添加更多数据以匹配您的5个工厂代号
             {"款式编码": "N001", "工厂代号": "N"},
             {"款式编码": "ZYM001", "工厂代号": "ZYM"}
         ];
@@ -472,13 +540,24 @@
         };
 
         // 应用状态
+        let styleData = [];
         let searchCount = 0;
         let lastResult = null;
         let isPlaying = false;
+        let searchTimeout = null;
         
         // DOM元素
+        const dataInfo = document.getElementById('dataInfo');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const loadedInfo = document.getElementById('loadedInfo');
+        const errorInfo = document.getElementById('errorInfo');
+        const updateInfo = document.getElementById('updateInfo');
+        const dataStats = document.getElementById('dataStats');
+        const totalRecords = document.getElementById('totalRecords');
+        const uniqueFactories = document.getElementById('uniqueFactories');
         const searchCountElement = document.getElementById('searchCount');
         const searchCodeInput = document.getElementById('searchCodeInput');
+        const searchSuggestions = document.getElementById('searchSuggestions');
         const searchBtn = document.getElementById('searchBtn');
         const voiceOutputBtn = document.getElementById('voiceOutputBtn');
         const copyResultBtn = document.getElementById('copyResultBtn');
@@ -494,25 +573,35 @@
         const audioPlayer = document.getElementById('audioPlayer');
         
         // 初始化应用
-        function init() {
+        async function init() {
             bindEvents();
+            await loadDataFromServer();
             updateSearchCount();
             checkAudioFiles();
-            searchCodeInput.focus();
         }
         
         function bindEvents() {
-            searchBtn.addEventListener('click', searchFactoryCode);
+            searchBtn.addEventListener('click', performSearch);
             voiceOutputBtn.addEventListener('click', playFactoryVoice);
             copyResultBtn.addEventListener('click', copyLastResult);
             modalPlayBtn.addEventListener('click', playFactoryVoice);
             modalStopBtn.addEventListener('click', stopAudioPlayback);
             closeResultBtn.addEventListener('click', closeResultModal);
             
+            // 输入时自动搜索
+            searchCodeInput.addEventListener('input', handleInputChange);
+            
             // 回车键搜索
             searchCodeInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    searchFactoryCode();
+                    performSearch();
+                }
+            });
+            
+            // 点击外部关闭建议框
+            document.addEventListener('click', (e) => {
+                if (!searchCodeInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+                    hideSuggestions();
                 }
             });
             
@@ -534,7 +623,7 @@
                 isPlaying = false;
                 audioStatus.innerHTML = '❌ 音频文件加载失败';
                 modalAudioStatus.innerHTML = '❌ 音频文件加载失败';
-                showToast('❌ 语音文件加载失败，请检查文件路径', true);
+                showToast('❌ 语音文件加载失败', true);
                 updateAudioUI();
             });
             
@@ -545,11 +634,81 @@
             });
         }
         
+        // 从服务器加载数据
+        async function loadDataFromServer() {
+            try {
+                showToast('📡 正在加载云端数据...');
+                
+                const response = await fetch('./data.json');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.data && Array.isArray(data.data)) {
+                    styleData = data.data;
+                    showSuccessState(data.lastUpdated);
+                    showToast('✅ 云端数据加载成功！');
+                } else {
+                    throw new Error('数据格式错误');
+                }
+                
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                // 使用备用数据
+                styleData = fallbackData;
+                showErrorState();
+                showToast('⚠️ 使用内置数据');
+            }
+            
+            updateDisplay();
+        }
+        
+        function showSuccessState(lastUpdated) {
+            loadingIndicator.style.display = 'none';
+            loadedInfo.style.display = 'block';
+            errorInfo.style.display = 'none';
+            dataStats.style.display = 'grid';
+            
+            if (lastUpdated) {
+                updateInfo.textContent = `最后更新: ${lastUpdated}`;
+            }
+            
+            // 启用输入和按钮
+            searchCodeInput.disabled = false;
+            searchBtn.disabled = false;
+            voiceOutputBtn.disabled = false;
+            copyResultBtn.disabled = false;
+        }
+        
+        function showErrorState() {
+            loadingIndicator.style.display = 'none';
+            loadedInfo.style.display = 'none';
+            errorInfo.style.display = 'block';
+            dataStats.style.display = 'grid';
+            
+            // 启用输入和按钮
+            searchCodeInput.disabled = false;
+            searchBtn.disabled = false;
+            voiceOutputBtn.disabled = false;
+            copyResultBtn.disabled = false;
+        }
+        
+        function updateDisplay() {
+            totalRecords.textContent = styleData.length;
+            
+            const factories = new Set(styleData.map(item => item.工厂代号));
+            uniqueFactories.textContent = factories.size;
+            
+            searchCountElement.textContent = searchCount;
+        }
+        
         // 检查音频文件
         function checkAudioFiles() {
             audioStatus.innerHTML = '🔊 检查音频文件...';
             
-            // 测试一个音频文件是否存在
             const testAudio = new Audio();
             testAudio.src = audioLibrary['J'];
             testAudio.oncanplaythrough = () => {
@@ -573,12 +732,86 @@
             localStorage.setItem('searchCount', searchCount.toString());
         }
         
-        function searchFactoryCode() {
+        // 输入变化处理
+        function handleInputChange(e) {
+            const value = e.target.value.trim();
+            
+            // 清除之前的定时器
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            if (value.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            
+            // 延迟搜索，避免频繁触发
+            searchTimeout = setTimeout(() => {
+                const suggestions = getSearchSuggestions(value);
+                showSuggestions(suggestions);
+                
+                // 如果只有一个匹配项，自动填充
+                if (suggestions.length === 1) {
+                    const firstSuggestion = suggestions[0];
+                    searchCodeInput.value = firstSuggestion.款式编码;
+                    performSearch();
+                }
+            }, 300);
+        }
+        
+        // 获取搜索建议
+        function getSearchSuggestions(query) {
+            if (!query) return [];
+            
+            const lowerQuery = query.toLowerCase();
+            return styleData.filter(item => 
+                item.款式编码.toLowerCase().includes(lowerQuery) ||
+                item.工厂代号.toLowerCase().includes(lowerQuery)
+            ).slice(0, 5); // 最多显示5条建议
+        }
+        
+        // 显示搜索建议
+        function showSuggestions(suggestions) {
+            if (suggestions.length === 0) {
+                hideSuggestions();
+                return;
+            }
+            
+            const html = suggestions.map(item => `
+                <div class="suggestion-item" data-code="${item.款式编码}">
+                    <strong>${item.款式编码}</strong> - ${item.工厂代号}
+                </div>
+            `).join('');
+            
+            searchSuggestions.innerHTML = html;
+            searchSuggestions.style.display = 'block';
+            
+            // 绑定点击事件
+            searchSuggestions.querySelectorAll('.suggestion-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const code = item.getAttribute('data-code');
+                    searchCodeInput.value = code;
+                    performSearch();
+                    hideSuggestions();
+                });
+            });
+        }
+        
+        // 隐藏建议框
+        function hideSuggestions() {
+            searchSuggestions.style.display = 'none';
+        }
+        
+        // 执行搜索
+        function performSearch() {
             const styleCode = searchCodeInput.value.trim();
             if (!styleCode) {
                 showToast('❌ 请输入款式编码', true);
                 return;
             }
+            
+            hideSuggestions();
             
             const result = styleData.find(item => 
                 item.款式编码.toUpperCase() === styleCode.toUpperCase()
@@ -648,7 +881,6 @@
             
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    // 播放成功
                     const statusText = `正在播放: ${factoryCode}`;
                     audioStatus.innerHTML = statusText;
                     modalAudioStatus.innerHTML = statusText;
@@ -656,7 +888,7 @@
                     console.error('Play failed:', error);
                     isPlaying = false;
                     updateAudioUI();
-                    showToast('❌ 播放失败，请检查音频文件', true);
+                    showToast('❌ 播放失败', true);
                 });
             }
         }
@@ -696,7 +928,6 @@
             navigator.clipboard.writeText(resultText).then(() => {
                 showToast('✅ 结果已复制到剪贴板');
             }).catch(() => {
-                // 备用方案
                 const textArea = document.createElement('textarea');
                 textArea.value = resultText;
                 document.body.appendChild(textArea);
