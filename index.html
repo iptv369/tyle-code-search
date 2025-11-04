@@ -456,6 +456,16 @@
             margin-top: 10px;
             font-size: 0.9rem;
         }
+        
+        .offline-mode {
+            background: var(--warning);
+            color: var(--dark);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -500,6 +510,11 @@
                     <div id="errorInfo" style="display: none;">
                         <p>❌ 数据加载失败，使用内置数据</p>
                         <button class="reload-btn" id="reloadDataBtn">🔄 重新加载数据</button>
+                    </div>
+                    <div id="offlineInfo" style="display: none;">
+                        <div class="offline-mode">
+                            📶 离线模式 - 使用内置数据
+                        </div>
                     </div>
                 </div>
                 
@@ -584,7 +599,7 @@
     <audio id="audioPlayer" preload="auto"></audio>
 
     <script>
-        // 内置数据（备用）
+        // 增强版内置数据（备用）
         const fallbackData = [
             {"款式编码": "Z1206", "工厂代号": "J"},
             {"款式编码": "D101", "工厂代号": "SD"},
@@ -605,14 +620,20 @@
             {"款式编码": "D1314", "工厂代号": "HY"},
             {"款式编码": "D1320", "工厂代号": "HY"},
             {"款式编码": "N001", "工厂代号": "N"},
-            {"款式编码": "ZYM001", "工厂代号": "ZYM"}
+            {"款式编码": "ZYM001", "工厂代号": "ZYM"},
+            // 添加更多示例数据
+            {"款式编码": "H001", "工厂代号": "HY"},
+            {"款式编码": "H060", "工厂代号": "SD"},
+            {"款式编码": "H061", "工厂代号": "SD"},
+            {"款式编码": "H062", "工厂代号": "SD"},
+            {"款式编码": "H064", "工厂代号": "SD"},
+            {"款式编码": "H065", "工厂代号": "SD"},
+            {"款式编码": "H201", "工厂代号": "HY"}
         ];
 
         // 多语言音频库
         const audioLibrary = {
             'mandarin': {
-                'XX': './XX_mandarin.mp3',
-                'HEY': './HEY_mandarin.mp3',
                 'N': './N_mandarin.mp3',
                 'SD': './SD_mandarin.mp3', 
                 'HY': './HY_mandarin.mp3',
@@ -620,8 +641,6 @@
                 'J': './J_mandarin.mp3'
             },
             'cantonese': {
-                'XX': './XX_cantonese.mp3',
-                'HEY': './HEY_cantonese.mp3',
                 'N': './N_cantonese.mp3',
                 'SD': './SD_cantonese.mp3', 
                 'HY': './HY_cantonese.mp3',
@@ -637,12 +656,14 @@
         let isPlaying = false;
         let searchTimeout = null;
         let currentLanguage = 'mandarin'; // 默认普通话
+        let isOfflineMode = false;
         
         // DOM元素
         const dataInfo = document.getElementById('dataInfo');
         const loadingIndicator = document.getElementById('loadingIndicator');
         const loadedInfo = document.getElementById('loadedInfo');
         const errorInfo = document.getElementById('errorInfo');
+        const offlineInfo = document.getElementById('offlineInfo');
         const updateInfo = document.getElementById('updateInfo');
         const dataStats = document.getElementById('dataStats');
         const totalRecords = document.getElementById('totalRecords');
@@ -756,6 +777,7 @@
             loadingIndicator.style.display = 'block';
             loadedInfo.style.display = 'none';
             errorInfo.style.display = 'none';
+            offlineInfo.style.display = 'none';
             dataStats.style.display = 'none';
             
             await loadDataFromServer();
@@ -768,43 +790,59 @@
             modalLanguageIndicator.textContent = languageText;
         }
         
-        // 从服务器加载数据 - 使用强制缓存刷新
+        // 从服务器加载数据 - 使用多个备用数据源
         async function loadDataFromServer() {
             try {
                 showToast('📡 正在加载云端数据...');
                 console.log('开始加载数据文件...');
                 
-                // 使用 GitHub Raw 链接 - 强制刷新缓存
-                const dataUrl = 'https://raw.githubusercontent.com/iptv369/tyle-code-search/refs/heads/main/data.json';
+                // 使用多个备用数据源
+                const dataSources = [
+                    // GitHub Raw 链接
+                    'https://raw.githubusercontent.com/iptv369/tyle-code-search/refs/heads/main/data.json',
+                    // 备用源1: 使用 jsDelivr CDN
+                    'https://cdn.jsdelivr.net/gh/iptv369/tyle-code-search@main/data.json',
+                    // 备用源2: 使用 statically CDN
+                    'https://cdn.statically.io/gh/iptv369/tyle-code-search/main/data.json'
+                ];
                 
-                // 使用更强制的时间戳
-                const timestamp = 'force_' + new Date().getTime();
-                const fullUrl = `${dataUrl}?t=${timestamp}&v=2`;
+                let data = null;
+                let lastError = null;
                 
-                console.log('数据文件URL:', fullUrl);
-                
-                const response = await fetch(fullUrl, {
-                    cache: 'no-cache',
-                    headers: {
-                        'Cache-Control': 'no-cache'
+                // 尝试多个数据源
+                for (const source of dataSources) {
+                    try {
+                        console.log('尝试数据源:', source);
+                        const timestamp = 'force_' + new Date().getTime();
+                        const fullUrl = `${source}?t=${timestamp}&v=2`;
+                        
+                        const response = await fetch(fullUrl, {
+                            cache: 'no-cache',
+                            headers: {
+                                'Cache-Control': 'no-cache'
+                            },
+                            timeout: 10000 // 10秒超时
+                        });
+                        
+                        console.log('数据源响应状态:', response.status, 'from', source);
+                        
+                        if (response.ok) {
+                            data = await response.json();
+                            console.log('数据加载成功，记录数:', data.data.length);
+                            break; // 成功则退出循环
+                        } else {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                    } catch (error) {
+                        console.error(`数据源 ${source} 失败:`, error);
+                        lastError = error;
+                        continue; // 继续尝试下一个源
                     }
-                });
-                
-                console.log('数据文件响应状态:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
-                const data = await response.json();
-                console.log('数据加载成功，记录数:', data.data.length);
-                
-                // 检查是否包含新数据
-                const hasH060 = data.data.some(item => item.款式编码 === 'H060');
-                console.log('数据中是否包含H060:', hasH060);
                 
                 if (data && data.data && Array.isArray(data.data)) {
                     styleData = data.data;
+                    isOfflineMode = false;
                     showSuccessState(data.lastUpdated);
                     showToast('✅ 云端数据加载成功！');
                     
@@ -812,7 +850,7 @@
                     const hData = data.data.filter(item => item.款式编码.startsWith('H')).slice(0, 5);
                     console.log('H系列数据示例:', hData);
                 } else {
-                    throw new Error('数据格式错误');
+                    throw new Error('所有数据源均失败: ' + (lastError ? lastError.message : '未知错误'));
                 }
                 
             } catch (error) {
@@ -821,7 +859,8 @@
                 
                 // 使用备用数据
                 styleData = fallbackData;
-                showErrorState();
+                isOfflineMode = true;
+                showOfflineState();
                 showToast('⚠️ 使用内置数据');
             }
             
@@ -832,6 +871,7 @@
             loadingIndicator.style.display = 'none';
             loadedInfo.style.display = 'block';
             errorInfo.style.display = 'none';
+            offlineInfo.style.display = 'none';
             dataStats.style.display = 'grid';
             
             if (lastUpdated) {
@@ -849,6 +889,21 @@
             loadingIndicator.style.display = 'none';
             loadedInfo.style.display = 'none';
             errorInfo.style.display = 'block';
+            offlineInfo.style.display = 'none';
+            dataStats.style.display = 'grid';
+            
+            // 启用输入和按钮
+            searchCodeInput.disabled = false;
+            searchBtn.disabled = false;
+            voiceOutputBtn.disabled = false;
+            copyResultBtn.disabled = false;
+        }
+        
+        function showOfflineState() {
+            loadingIndicator.style.display = 'none';
+            loadedInfo.style.display = 'none';
+            errorInfo.style.display = 'none';
+            offlineInfo.style.display = 'block';
             dataStats.style.display = 'grid';
             
             // 启用输入和按钮
