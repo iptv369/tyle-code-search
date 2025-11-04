@@ -13,6 +13,7 @@
     <link rel="manifest" href="/site.webmanifest">
     
     <style>
+        /* 保持原有的CSS样式不变 */
         :root {
             --primary: #4a6bdf;
             --secondary: #6a11cb;
@@ -445,6 +446,17 @@
             border-radius: 10px;
             font-size: 0.8rem;
         }
+        
+        .reload-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -484,9 +496,11 @@
                     <div id="loadedInfo" style="display: none;">
                         <p>✅ 数据加载完成！可以开始查询</p>
                         <div class="update-info" id="updateInfo"></div>
+                        <button class="reload-btn" id="reloadDataBtn">🔄 重新加载数据</button>
                     </div>
                     <div id="errorInfo" style="display: none;">
                         <p>❌ 数据加载失败，使用内置数据</p>
+                        <button class="reload-btn" id="reloadDataBtn">🔄 重新加载数据</button>
                     </div>
                 </div>
                 
@@ -601,14 +615,14 @@
                 'HEY': './HEY_mandarin.mp3',
                 'XX': './XX_mandarin.mp3',
                 'N': './N_mandarin.mp3',
-                'SD': './SD_mandarin.mp3', 
+               'SD': './SD_mandarin.mp3', 
                 'HY': './HY_mandarin.mp3',
                 'ZYM': './ZYM_mandarin.mp3',
                 'J': './J_mandarin.mp3'
             },
             'cantonese': {
                 'HEY': './HEY_cantonese.mp3',
-                'XX': './XX_cantonese.mp3',     
+                'XX': './XX_cantonese.mp3',  
                 'N': './N_cantonese.mp3',
                 'SD': './SD_cantonese.mp3', 
                 'HY': './HY_cantonese.mp3',
@@ -653,6 +667,7 @@
         const toast = document.getElementById('toast');
         const audioPlayer = document.getElementById('audioPlayer');
         const languageOptions = document.querySelectorAll('.language-option');
+        const reloadDataBtns = document.querySelectorAll('#reloadDataBtn');
         
         // 初始化应用
         async function init() {
@@ -670,6 +685,11 @@
             modalPlayBtn.addEventListener('click', playFactoryVoice);
             modalStopBtn.addEventListener('click', stopAudioPlayback);
             closeResultBtn.addEventListener('click', closeResultModal);
+            
+            // 重新加载数据按钮
+            reloadDataBtns.forEach(btn => {
+                btn.addEventListener('click', reloadData);
+            });
             
             // 语言选择事件
             languageOptions.forEach(option => {
@@ -731,6 +751,17 @@
             });
         }
         
+        // 重新加载数据
+        async function reloadData() {
+            showToast('🔄 重新加载数据...');
+            loadingIndicator.style.display = 'block';
+            loadedInfo.style.display = 'none';
+            errorInfo.style.display = 'none';
+            dataStats.style.display = 'none';
+            
+            await loadDataFromServer();
+        }
+        
         // 更新语言指示器
         function updateLanguageIndicators() {
             const languageText = currentLanguage === 'mandarin' ? '普通话' : '粤语';
@@ -741,9 +772,9 @@
         // 从服务器加载数据
         async function loadDataFromServer() {
             try {
-                showToast('📡 正在加载云端数据...');
-                
-                const response = await fetch('./data.json');
+                // 添加时间戳避免缓存
+                const timestamp = new Date().getTime();
+                const response = await fetch(`./data.json?t=${timestamp}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -754,7 +785,7 @@
                 if (data && data.data && Array.isArray(data.data)) {
                     styleData = data.data;
                     showSuccessState(data.lastUpdated);
-                    showToast('✅ 云端数据加载成功！');
+                    showToast('✅ 数据加载成功！');
                 } else {
                     throw new Error('数据格式错误');
                 }
@@ -807,6 +838,14 @@
             uniqueFactories.textContent = factories.size;
             
             searchCountElement.textContent = searchCount;
+            
+            // 调试信息 - 在控制台显示加载的数据
+            console.log('加载的数据记录数:', styleData.length);
+            console.log('前5条数据:', styleData.slice(0, 5));
+            
+            // 检查是否包含新添加的数据
+            const hasH060 = styleData.some(item => item.款式编码 === 'H060');
+            console.log('是否包含H060:', hasH060);
         }
         
         // 检查音频文件
