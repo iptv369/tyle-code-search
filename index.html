@@ -13,7 +13,6 @@
     <link rel="manifest" href="/site.webmanifest">
     
     <style>
-        /* 保持原有的CSS样式不变 */
         :root {
             --primary: #4a6bdf;
             --secondary: #6a11cb;
@@ -612,17 +611,13 @@
         // 多语言音频库
         const audioLibrary = {
             'mandarin': {
-                'HEY': './HEY_mandarin.mp3',
-                'XX': './XX_mandarin.mp3',
                 'N': './N_mandarin.mp3',
-               'SD': './SD_mandarin.mp3', 
+                'SD': './SD_mandarin.mp3', 
                 'HY': './HY_mandarin.mp3',
                 'ZYM': './ZYM_mandarin.mp3',
                 'J': './J_mandarin.mp3'
             },
             'cantonese': {
-                'HEY': './HEY_cantonese.mp3',
-                'XX': './XX_cantonese.mp3',  
                 'N': './N_cantonese.mp3',
                 'SD': './SD_cantonese.mp3', 
                 'HY': './HY_cantonese.mp3',
@@ -769,33 +764,48 @@
             modalLanguageIndicator.textContent = languageText;
         }
         
-        // 从服务器加载数据
+        // 从服务器加载数据 - 使用 GitHub Raw 链接
         async function loadDataFromServer() {
             try {
+                showToast('📡 正在加载云端数据...');
+                console.log('开始加载数据文件...');
+                
+                // 使用 GitHub Raw 链接
+                const dataUrl = 'https://raw.githubusercontent.com/iptv369/tyle-code-search/refs/heads/main/data.json';
+                console.log('数据文件URL:', dataUrl);
+                
                 // 添加时间戳避免缓存
                 const timestamp = new Date().getTime();
-                const response = await fetch(`./data.json?t=${timestamp}`);
+                const response = await fetch(`${dataUrl}?t=${timestamp}`);
+                
+                console.log('数据文件响应状态:', response.status);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
+                console.log('数据加载成功，记录数:', data.data.length);
                 
                 if (data && data.data && Array.isArray(data.data)) {
                     styleData = data.data;
                     showSuccessState(data.lastUpdated);
-                    showToast('✅ 数据加载成功！');
+                    showToast('✅ 云端数据加载成功！');
                 } else {
                     throw new Error('数据格式错误');
                 }
                 
             } catch (error) {
                 console.error('加载数据失败:', error);
+                console.log('错误详情:', error.message);
+                
                 // 使用备用数据
                 styleData = fallbackData;
                 showErrorState();
                 showToast('⚠️ 使用内置数据');
+                
+                // 在控制台显示更多调试信息
+                console.log('使用的备用数据记录数:', fallbackData.length);
             }
             
             updateDisplay();
@@ -839,11 +849,12 @@
             
             searchCountElement.textContent = searchCount;
             
-            // 调试信息 - 在控制台显示加载的数据
-            console.log('加载的数据记录数:', styleData.length);
-            console.log('前5条数据:', styleData.slice(0, 5));
+            // 调试信息
+            console.log('最终使用的数据记录数:', styleData.length);
+            console.log('工厂数量:', factories.size);
+            console.log('前3条数据:', styleData.slice(0, 3));
             
-            // 检查是否包含新添加的数据
+            // 检查是否包含新数据
             const hasH060 = styleData.some(item => item.款式编码 === 'H060');
             console.log('是否包含H060:', hasH060);
         }
