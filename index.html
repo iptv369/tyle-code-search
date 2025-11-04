@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>款式编码查询工具</title>
-    <meta name="description" content="快速查询款式编码，语音播报">
+    <meta name="description" content="快速查询款式编码，支持普通话和粤语语音播报">
+    
+    <!-- 网站图标 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    
     <style>
         :root {
             --primary: #4a6bdf;
@@ -71,6 +78,38 @@
             margin-bottom: 15px;
             color: var(--dark);
             font-weight: 600;
+        }
+        
+        .language-selector {
+            background-color: var(--light);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--primary);
+        }
+        
+        .language-options {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .language-option {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+        
+        .language-option.active {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            transform: scale(1.05);
         }
         
         .data-info {
@@ -397,16 +436,42 @@
             margin-top: 5px;
             text-align: center;
         }
+        
+        .language-indicator {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🔊 款式编码查询工具</h1>
-            <p>自动搜索 • 语音播报 • 云端数据</p>
+            <p>自动搜索 • 多语言语音播报 • 云端数据</p>
         </div>
         
         <div class="content">
+            <!-- 语言选择部分 -->
+            <div class="section">
+                <div class="section-title">语言选择</div>
+                
+                <div class="language-selector">
+                    <p>选择语音播报语言：</p>
+                    <div class="language-options">
+                        <div class="language-option active" data-language="mandarin">
+                            🇨🇳 普通话
+                        </div>
+                        <div class="language-option" data-language="cantonese">
+                            🇭🇰 粤语
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 数据状态部分 -->
             <div class="section">
                 <div class="section-title">数据状态</div>
@@ -460,7 +525,7 @@
                 </button>
                 
                 <button class="voice-output-btn" id="voiceOutputBtn" disabled>
-                    🔊 播放工厂语音
+                    🔊 播放工厂语音 <span class="language-indicator" id="languageIndicator">普通话</span>
                 </button>
                 
                 <button class="copy-btn" id="copyResultBtn" disabled>
@@ -487,7 +552,7 @@
             
             <div class="audio-controls">
                 <button class="audio-btn play-btn" id="modalPlayBtn">
-                    🔊 播放语音
+                    🔊 播放语音 <span class="language-indicator" id="modalLanguageIndicator">普通话</span>
                 </button>
                 <button class="audio-btn stop-btn" id="modalStopBtn">
                     ⏹️ 停止
@@ -530,13 +595,22 @@
             {"款式编码": "ZYM001", "工厂代号": "ZYM"}
         ];
 
-        // 使用您录制的5个音频文件
+        // 多语言音频库
         const audioLibrary = {
-            'N': './N.mp3',
-            'SD': './SD.mp3', 
-            'HY': './HY.mp3',
-            'ZYM': './ZYM.mp3',
-            'J': './J.mp3'
+            'mandarin': {
+                'N': './N_mandarin.mp3',
+                'SD': './SD_mandarin.mp3', 
+                'HY': './HY_mandarin.mp3',
+                'ZYM': './ZYM_mandarin.mp3',
+                'J': './J_mandarin.mp3'
+            },
+            'cantonese': {
+                'N': './N_cantonese.mp3',
+                'SD': './SD_cantonese.mp3', 
+                'HY': './HY_cantonese.mp3',
+                'ZYM': './ZYM_cantonese.mp3',
+                'J': './J_cantonese.mp3'
+            }
         };
 
         // 应用状态
@@ -545,6 +619,7 @@
         let lastResult = null;
         let isPlaying = false;
         let searchTimeout = null;
+        let currentLanguage = 'mandarin'; // 默认普通话
         
         // DOM元素
         const dataInfo = document.getElementById('dataInfo');
@@ -562,15 +637,18 @@
         const voiceOutputBtn = document.getElementById('voiceOutputBtn');
         const copyResultBtn = document.getElementById('copyResultBtn');
         const audioStatus = document.getElementById('audioStatus');
+        const languageIndicator = document.getElementById('languageIndicator');
         const resultModal = document.getElementById('resultModal');
         const resultCode = document.getElementById('resultCode');
         const resultFactory = document.getElementById('resultFactory');
         const modalAudioStatus = document.getElementById('modalAudioStatus');
         const modalPlayBtn = document.getElementById('modalPlayBtn');
         const modalStopBtn = document.getElementById('modalStopBtn');
+        const modalLanguageIndicator = document.getElementById('modalLanguageIndicator');
         const closeResultBtn = document.getElementById('closeResultBtn');
         const toast = document.getElementById('toast');
         const audioPlayer = document.getElementById('audioPlayer');
+        const languageOptions = document.querySelectorAll('.language-option');
         
         // 初始化应用
         async function init() {
@@ -578,6 +656,7 @@
             await loadDataFromServer();
             updateSearchCount();
             checkAudioFiles();
+            updateLanguageIndicators();
         }
         
         function bindEvents() {
@@ -587,6 +666,20 @@
             modalPlayBtn.addEventListener('click', playFactoryVoice);
             modalStopBtn.addEventListener('click', stopAudioPlayback);
             closeResultBtn.addEventListener('click', closeResultModal);
+            
+            // 语言选择事件
+            languageOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    // 移除所有活动状态
+                    languageOptions.forEach(opt => opt.classList.remove('active'));
+                    // 设置当前选项为活动状态
+                    option.classList.add('active');
+                    // 更新当前语言
+                    currentLanguage = option.getAttribute('data-language');
+                    updateLanguageIndicators();
+                    showToast(`已切换到 ${currentLanguage === 'mandarin' ? '普通话' : '粤语'} 语音`);
+                });
+            });
             
             // 输入时自动搜索
             searchCodeInput.addEventListener('input', handleInputChange);
@@ -632,6 +725,13 @@
                     closeResultModal();
                 }
             });
+        }
+        
+        // 更新语言指示器
+        function updateLanguageIndicators() {
+            const languageText = currentLanguage === 'mandarin' ? '普通话' : '粤语';
+            languageIndicator.textContent = languageText;
+            modalLanguageIndicator.textContent = languageText;
         }
         
         // 从服务器加载数据
@@ -710,7 +810,7 @@
             audioStatus.innerHTML = '🔊 检查音频文件...';
             
             const testAudio = new Audio();
-            testAudio.src = audioLibrary['J'];
+            testAudio.src = audioLibrary[currentLanguage]['J'];
             testAudio.oncanplaythrough = () => {
                 audioStatus.innerHTML = '✅ 语音系统就绪';
             };
@@ -860,10 +960,10 @@
             }
             
             const factoryCode = lastResult.factoryCode;
-            const audioUrl = audioLibrary[factoryCode];
+            const audioUrl = audioLibrary[currentLanguage][factoryCode];
             
             if (!audioUrl) {
-                showToast(`❌ 没有找到 ${factoryCode} 的语音文件`, true);
+                showToast(`❌ 没有找到 ${factoryCode} 的${currentLanguage === 'mandarin' ? '普通话' : '粤语'}语音文件`, true);
                 return;
             }
             
@@ -881,7 +981,8 @@
             
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    const statusText = `正在播放: ${factoryCode}`;
+                    const languageText = currentLanguage === 'mandarin' ? '普通话' : '粤语';
+                    const statusText = `正在播放 ${languageText}: ${factoryCode}`;
                     audioStatus.innerHTML = statusText;
                     modalAudioStatus.innerHTML = statusText;
                 }).catch(error => {
@@ -908,12 +1009,16 @@
         function updateAudioUI() {
             if (isPlaying) {
                 voiceOutputBtn.classList.add('playing');
-                voiceOutputBtn.innerHTML = '⏸️ 停止播放';
-                modalPlayBtn.innerHTML = '⏸️ 停止播放';
+                voiceOutputBtn.innerHTML = '⏸️ 停止播放 <span class="language-indicator" id="languageIndicator">' + 
+                    (currentLanguage === 'mandarin' ? '普通话' : '粤语') + '</span>';
+                modalPlayBtn.innerHTML = '⏸️ 停止播放 <span class="language-indicator" id="modalLanguageIndicator">' + 
+                    (currentLanguage === 'mandarin' ? '普通话' : '粤语') + '</span>';
             } else {
                 voiceOutputBtn.classList.remove('playing');
-                voiceOutputBtn.innerHTML = '🔊 播放工厂语音';
-                modalPlayBtn.innerHTML = '🔊 播放语音';
+                voiceOutputBtn.innerHTML = '🔊 播放工厂语音 <span class="language-indicator" id="languageIndicator">' + 
+                    (currentLanguage === 'mandarin' ? '普通话' : '粤语') + '</span>';
+                modalPlayBtn.innerHTML = '🔊 播放语音 <span class="language-indicator" id="modalLanguageIndicator">' + 
+                    (currentLanguage === 'mandarin' ? '普通话' : '粤语') + '</span>';
             }
         }
         
